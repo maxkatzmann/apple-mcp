@@ -10,7 +10,7 @@ A collection of [Model Context Protocol (MCP)](https://modelcontextprotocol.io) 
 | [Apple Messages](#apple-messages) | Done | Read message history, search conversations, and send messages |
 | [Apple Contacts](#apple-contacts) | Done | Manage contacts and contact groups |
 | Apple Mail | Planned | Read, send, and manage email |
-| Apple Reminders | Planned | Create and manage reminders and lists |
+| [Apple Reminders](#apple-reminders) | Done | Create and manage reminders and lists |
 | Apple Calendar | Planned | Manage calendar events and schedules |
 | Apple Maps | Planned | Search locations, get directions, and place details |
 
@@ -33,6 +33,9 @@ npx @griches/apple-messages-mcp
 
 # Apple Contacts
 npx @griches/apple-contacts-mcp
+
+# Apple Reminders
+npx @griches/apple-reminders-mcp
 ```
 
 ### Claude Code
@@ -41,6 +44,7 @@ npx @griches/apple-contacts-mcp
 claude mcp add apple-notes -- npx @griches/apple-notes-mcp
 claude mcp add apple-messages -- npx @griches/apple-messages-mcp
 claude mcp add apple-contacts -- npx @griches/apple-contacts-mcp
+claude mcp add apple-reminders -- npx @griches/apple-reminders-mcp
 ```
 
 ### Claude Desktop
@@ -61,6 +65,10 @@ Add to your `claude_desktop_config.json`:
     "apple-contacts": {
       "command": "npx",
       "args": ["@griches/apple-contacts-mcp"]
+    },
+    "apple-reminders": {
+      "command": "npx",
+      "args": ["@griches/apple-reminders-mcp"]
     }
   }
 }
@@ -82,6 +90,9 @@ cd ../messages && npm install && npm run build
 
 # Apple Contacts
 cd ../contacts && npm install && npm run build
+
+# Apple Reminders
+cd ../reminders && npm install && npm run build
 ```
 
 Then configure your MCP client to run the built files directly:
@@ -100,6 +111,10 @@ Then configure your MCP client to run the built files directly:
     "apple-contacts": {
       "command": "node",
       "args": ["/absolute/path/to/contacts/build/index.js"]
+    },
+    "apple-reminders": {
+      "command": "node",
+      "args": ["/absolute/path/to/reminders/build/index.js"]
     }
   }
 }
@@ -183,6 +198,32 @@ An MCP server that interacts with Apple Contacts via AppleScript.
 - "Find contacts named John"
 - "Get details for Jane Smith"
 - "Create a contact for Bob Jones at Acme Corp"
+
+---
+
+## Apple Reminders
+
+An MCP server that interacts with Apple Reminders via AppleScript.
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_lists` | List all reminder lists |
+| `create_list` | Create a new reminder list |
+| `list_reminders` | List reminders in a list (optionally include completed) |
+| `get_reminder` | Get full details of a reminder by name |
+| `create_reminder` | Create a new reminder with optional due date, notes, and priority |
+| `complete_reminder` | Mark a reminder as completed |
+| `delete_reminder` | Delete a reminder |
+| `search_reminders` | Search reminders by name across lists |
+
+### Usage Examples
+
+- "Show my reminder lists"
+- "List reminders in my Shopping list"
+- "Create a reminder to buy milk in my Groceries list"
+- "Mark the dentist appointment reminder as done"
 
 ---
 

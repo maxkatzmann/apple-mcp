@@ -1,0 +1,260 @@
+import { execFile } from "node:child_process";
+
+export function sanitize(input: string): string {
+  return input
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\r\n/g, "\\n")
+    .replace(/\r/g, "\\n")
+    .replace(/\n/g, "\\n");
+}
+
+export function runAppleScript(script: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile("osascript", ["-e", script], { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`AppleScript error: ${stderr || error.message}`));
+        return;
+      }
+      resolve(stdout.trimEnd());
+    });
+  });
+}
+
+const FIELD_DELIM = "|||";
+const RECORD_DELIM = "<<<>>>";
+
+export async function listLists(): Promise<{ name: string; id: string }[]> {
+  const script = `
+tell application "Reminders"
+  set listInfo to {}
+  repeat with l in lists
+    set listName to name of l
+    set listId to id of l
+    set end of listInfo to listName & "${FIELD_DELIM}" & listId
+  end repeat
+  set AppleScript's text item delimiters to "${RECORD_DELIM}"
+  return listInfo as text
+end tell`;
+  const raw = await runAppleScript(script);
+  if (!raw) return [];
+  return raw.split(RECORD_DELIM).map((record) => {
+    const [name, id] = record.split(FIELD_DELIM).map((s) => s.trim());
+    return { name, id };
+  });
+}
+
+export async function createList(name: string): Promise<string> {
+  const safeName = sanitize(name);
+  const script = `
+tell application "Reminders"
+  make new list with properties {name:"${safeName}"}
+  return "List created: ${safeName}"
+end tell`;
+  return runAppleScript(script);
+}
+
+export async function listReminders(
+  listName: string,
+  includeCompleted?: boolean
+): Promise<{ name: string; id: string; completed: boolean; dueDate: string | null; priority: number }[]> {
+  const safeList = sanitize(listName);
+  const filter = includeCompleted ? "" : " whose completed is false";
+  const script = `
+tell application "Reminders"
+  set theList to list "${safeList}"
+  set reminderList to {}
+  set matchedReminders to (every reminder of theList${filter})
+  repeat with r in matchedReminders
+    set rName to name of r
+    set rId to id of r
+    set rCompleted to completed of r
+    set rPriority to priority of r
+    set rDueDate to ""
+    try
+      set rDueDate to due date of r as text
+    end try
+    set end of reminderList to rName & "${FIELD_DELIM}" & rId & "${FIELD_DELIM}" & (rCompleted as text) & "${FIELD_DELIM}" & rDueDate & "${FIELD_DELIM}" & (rPriority as text)
+  end repeat
+  set AppleScript's text item delimiters to "${RECORD_DELIM}"
+  return reminderList as text
+end tell`;
+  const raw = await runAppleScript(script);
+  if (!raw) return [];
+  return raw.split(RECORD_DELIM).map((record) => {
+    const [name, id, completed, dueDate, priority] = record.split(FIELD_DELIM).map((s) => s.trim());
+    return {
+      name,
+      id,
+      completed: completed === "true",
+      dueDate: dueDate || null,
+      priority: parseInt(priority, 10) || 0,
+    };
+  });
+}
+
+export async function getReminder(name: string, listName?: string): Promise<{
+  name: string;
+  id: string;
+  completed: boolean;
+  dueDate: string | null;
+  body: string | null;
+  priority: number;
+  list: string;
+}> {
+  const safeName = sanitize(name);
+  let scope: string;
+  if (listName) {
+    const safeList = sanitize(listName);
+    scope = `reminders of list "${safeList}"`;
+  } else {
+    scope = "every reminder";
+  }
+  const script = `
+tell application "Reminders"
+  set matchedReminders to (${scope} whose name is "${safeName}")
+  if (count of matchedReminders) is 0 then
+    error "Reminder not found: ${safeName}"
+  end if
+  set r to item 1 of matchedReminders
+  set rName to name of r
+  set rId to id of r
+  set rCompleted to completed of r
+  set rPriority to priority of r
+  set rBody to ""
+  try
+    set rBody to body of r
+  end try
+  set rDueDate to ""
+  try
+    set rDueDate to due date of r as text
+  end try
+  set rList to name of container of r
+  return rName & "${RECORD_DELIM}" & rId & "${RECORD_DELIM}" & (rCompleted as text) & "${RECORD_DELIM}" & rDueDate & "${RECORD_DELIM}" & rBody & "${RECORD_DELIM}" & (rPriority as text) & "${RECORD_DELIM}" & rList
+end tell`;
+  const raw = await runAppleScript(script);
+  const parts = raw.split(RECORD_DELIM);
+  return {
+    name: parts[0]?.trim() || "",
+    id: parts[1]?.trim() || "",
+    completed: parts[2]?.trim() === "true",
+    dueDate: parts[3]?.trim() || null,
+    body: parts[4]?.trim() || null,
+    priority: parseInt(parts[5]?.trim() || "0", 10),
+    list: parts[6]?.trim() || "",
+  };
+}
+
+export async function createReminder(
+  name: string,
+  listName: string,
+  options?: { body?: string; dueDate?: string; priority?: number }
+): Promise<string> {
+  const safeName = sanitize(name);
+  const safeList = sanitize(listName);
+  let props = `{name:"${safeName}"`;
+  if (options?.body) props += `, body:"${sanitize(options.body)}"`;
+  if (options?.priority !== undefined) props += `, priority:${options.priority}`;
+  props += "}";
+
+  let dateSetup = "";
+  if (options?.dueDate) {
+    const safeDate = sanitize(options.dueDate);
+    dateSetup = `\n  set due date of newReminder to date "${safeDate}"`;
+  }
+
+  const script = `
+tell application "Reminders"
+  set theList to list "${safeList}"
+  set newReminder to make new reminder at end of reminders of theList with properties ${props}${dateSetup}
+  return "Reminder created: ${safeName} in ${safeList}"
+end tell`;
+  return runAppleScript(script);
+}
+
+export async function completeReminder(name: string, listName?: string): Promise<string> {
+  const safeName = sanitize(name);
+  let scope: string;
+  if (listName) {
+    const safeList = sanitize(listName);
+    scope = `reminders of list "${safeList}"`;
+  } else {
+    scope = "every reminder";
+  }
+  const script = `
+tell application "Reminders"
+  set matchedReminders to (${scope} whose name is "${safeName}")
+  if (count of matchedReminders) is 0 then
+    error "Reminder not found: ${safeName}"
+  end if
+  set r to item 1 of matchedReminders
+  set completed of r to true
+  return "Reminder completed: ${safeName}"
+end tell`;
+  return runAppleScript(script);
+}
+
+export async function deleteReminder(name: string, listName?: string): Promise<string> {
+  const safeName = sanitize(name);
+  let scope: string;
+  if (listName) {
+    const safeList = sanitize(listName);
+    scope = `reminders of list "${safeList}"`;
+  } else {
+    scope = "every reminder";
+  }
+  const script = `
+tell application "Reminders"
+  set matchedReminders to (${scope} whose name is "${safeName}")
+  if (count of matchedReminders) is 0 then
+    error "Reminder not found: ${safeName}"
+  end if
+  delete item 1 of matchedReminders
+  return "Reminder deleted: ${safeName}"
+end tell`;
+  return runAppleScript(script);
+}
+
+export async function searchReminders(query: string, listName?: string): Promise<{ name: string; id: string; list: string; completed: boolean }[]> {
+  const safeQuery = sanitize(query);
+  let script: string;
+  if (listName) {
+    const safeList = sanitize(listName);
+    script = `
+tell application "Reminders"
+  set results to {}
+  set matchedReminders to (reminders of list "${safeList}" whose name contains "${safeQuery}")
+  repeat with r in matchedReminders
+    set rName to name of r
+    set rId to id of r
+    set rCompleted to completed of r
+    set end of results to rName & "${FIELD_DELIM}" & rId & "${FIELD_DELIM}" & "${safeList}" & "${FIELD_DELIM}" & (rCompleted as text)
+  end repeat
+  set AppleScript's text item delimiters to "${RECORD_DELIM}"
+  return results as text
+end tell`;
+  } else {
+    script = `
+tell application "Reminders"
+  set results to {}
+  repeat with l in lists
+    set listName to name of l
+    set matchedReminders to (reminders of l whose name contains "${safeQuery}")
+    repeat with r in matchedReminders
+      set rName to name of r
+      set rId to id of r
+      set rCompleted to completed of r
+      set end of results to rName & "${FIELD_DELIM}" & rId & "${FIELD_DELIM}" & listName & "${FIELD_DELIM}" & (rCompleted as text)
+    end repeat
+  end repeat
+  set AppleScript's text item delimiters to "${RECORD_DELIM}"
+  return results as text
+end tell`;
+  }
+  const raw = await runAppleScript(script);
+  if (!raw) return [];
+  return raw.split(RECORD_DELIM).map((record) => {
+    const [name, id, list, completed] = record.split(FIELD_DELIM).map((s) => s.trim());
+    return { name, id, list, completed: completed === "true" };
+  });
+}
