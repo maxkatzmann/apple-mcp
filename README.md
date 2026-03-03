@@ -17,54 +17,78 @@ A collection of [Model Context Protocol (MCP)](https://modelcontextprotocol.io) 
 ## Requirements
 
 - **macOS** (uses AppleScript and macOS-specific APIs)
-- **Node.js** 22.x or later
+- **Node.js** 18+ for Apple Notes, 22+ for Apple Messages
 - **Full Disk Access** granted to your terminal app (System Settings > Privacy & Security > Full Disk Access) — required for reading the Messages database
 
-## Installation
+## Quick Start
 
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/griches/apple-mcp.git
-cd apple-mcp
-```
-
-### 2. Build the servers
+No cloning or building required — install and run directly with `npx`:
 
 ```bash
 # Apple Notes
-cd notes
-npm install
-npm run build
+npx @griches/apple-notes-mcp
 
 # Apple Messages
-cd ../messages
-npm install
-npm run build
+npx @griches/apple-messages-mcp
 ```
 
-### 3. Configure your MCP client
+### Claude Code
 
-Add the servers to your MCP client configuration (e.g. Claude Code `.mcp.json`, Claude Desktop `claude_desktop_config.json`):
+```bash
+claude mcp add apple-notes -- npx @griches/apple-notes-mcp
+claude mcp add apple-messages -- npx @griches/apple-messages-mcp
+```
+
+### Claude Desktop
+
+Add to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "apple-notes": {
-      "type": "stdio",
+      "command": "npx",
+      "args": ["@griches/apple-notes-mcp"]
+    },
+    "apple-messages": {
+      "command": "npx",
+      "args": ["@griches/apple-messages-mcp"]
+    }
+  }
+}
+```
+
+## Install from Source
+
+If you prefer to build from source:
+
+```bash
+git clone https://github.com/griches/apple-mcp.git
+cd apple-mcp
+
+# Apple Notes
+cd notes && npm install && npm run build
+
+# Apple Messages
+cd ../messages && npm install && npm run build
+```
+
+Then configure your MCP client to run the built files directly:
+
+```json
+{
+  "mcpServers": {
+    "apple-notes": {
       "command": "node",
       "args": ["/absolute/path/to/notes/build/index.js"]
     },
     "apple-messages": {
-      "type": "stdio",
       "command": "node",
       "args": ["/absolute/path/to/messages/build/index.js"]
     }
   }
 }
 ```
-
-Replace `/absolute/path/to/` with the actual path to your cloned repository.
 
 ---
 
