@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "apple-notes": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/Users/garyriches/Documents/Source/MCP/Apple/notes/build/index.js"]
+    }
+  }
+}
