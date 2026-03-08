@@ -390,7 +390,7 @@ An MCP server that interacts with Apple Mail via AppleScript.
 | Tool | Description |
 |------|-------------|
 | `list_mailboxes` | List all mailboxes across accounts with unread counts |
-| `list_messages` | List recent messages in a mailbox |
+| `list_messages` | List recent messages in a mailbox, optionally filtered to unread only |
 | `get_message` | Get the full content of an email by ID |
 | `search_messages` | Search emails by subject or sender across mailboxes |
 | `send_email` | Send an email with optional CC/BCC (supports multiple recipients) |
@@ -404,6 +404,7 @@ An MCP server that interacts with Apple Mail via AppleScript.
 
 - "How many unread emails do I have?"
 - "Show my recent emails in INBOX"
+- "Show my unread emails in INBOX"
 - "Search my email for invoices"
 - "Send an email to bob@example.com about the meeting"
 
