@@ -341,9 +341,9 @@ An MCP server that interacts with Apple Calendar. Read operations use a compiled
 | `list_calendars` | List all calendars |
 | `list_all_events` | List events across all calendars within a date range |
 | `list_events` | List events in a specific calendar within a date range |
-| `get_event` | Get full details of an event by summary/title |
-| `create_event` | Create a new event with date, time, location, and description |
-| `update_event` | Update an existing event's details |
+| `get_event` | Get full details of an event by summary/title, including alerts |
+| `create_event` | Create a new event with date, time, location, description, and optional alerts |
+| `update_event` | Update an existing event's details, including alerts |
 | `delete_event` | Delete an event by summary/title |
 | `search_events` | Search events by summary/title across calendars |
 
@@ -352,6 +352,8 @@ An MCP server that interacts with Apple Calendar. Read operations use a compiled
 - "List my calendars"
 - "Show events in my Work calendar for next week"
 - "Create a meeting tomorrow at 2pm in my Work calendar"
+- "Create a dentist appointment on Friday at 10am with an alert 2 hours before"
+- "Add a 30-minute alert to my Team Standup event"
 - "Search for events about standup"
 
 ---
