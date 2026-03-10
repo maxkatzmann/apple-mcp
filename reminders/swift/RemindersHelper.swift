@@ -130,7 +130,21 @@ func listReminders(store: EKEventStore, listName: String, includeCompleted: Bool
     print("[\(items.joined(separator: ","))]")
 }
 
-func getReminder(store: EKEventStore, name: String, listName: String?) {
+// MARK: - Reminder Lookup
+
+/// Finds a single reminder by ID (fast, O(1)) or by name (searches all reminders in the given list).
+/// --id takes precedence; --list is only used for name-based lookup.
+@discardableResult
+func findReminder(store: EKEventStore, name: String?, id: String?, listName: String?) -> EKReminder {
+    if let id = id {
+        guard let item = store.calendarItem(withIdentifier: id) as? EKReminder else {
+            exitWithError("Reminder not found with id: \(id)")
+        }
+        return item
+    }
+    guard let name = name else {
+        exitWithError("Either --name or --id must be provided")
+    }
     var calendars: [EKCalendar]? = nil
     if let listName = listName {
         let matched = store.calendars(for: .reminder).filter { $0.title == listName }
@@ -142,6 +156,11 @@ func getReminder(store: EKEventStore, name: String, listName: String?) {
     guard let reminder = reminders.first(where: { ($0.title ?? "").lowercased() == nameLower }) else {
         exitWithError("Reminder not found: \(name)")
     }
+    return reminder
+}
+
+func getReminder(store: EKEventStore, name: String?, id: String?, listName: String?) {
+    let reminder = findReminder(store: store, name: name, id: id, listName: listName)
     print(reminderToJSON(reminder, includeBody: true))
 }
 
@@ -161,18 +180,9 @@ func searchReminders(store: EKEventStore, query: String, listName: String?) {
     print("[\(items.joined(separator: ","))]")
 }
 
-func setReminderCompleted(store: EKEventStore, name: String, listName: String?, completed: Bool) {
-    var calendars: [EKCalendar]? = nil
-    if let listName = listName {
-        let matched = store.calendars(for: .reminder).filter { $0.title == listName }
-        if matched.isEmpty { exitWithError("List not found: \(listName)") }
-        calendars = matched
-    }
-    let reminders = fetchAllReminders(store: store, in: calendars)
-    let nameLower = name.lowercased()
-    guard let reminder = reminders.first(where: { ($0.title ?? "").lowercased() == nameLower }) else {
-        exitWithError("Reminder not found: \(name)")
-    }
+func setReminderCompleted(store: EKEventStore, name: String?, id: String?, listName: String?, completed: Bool) {
+    let reminder = findReminder(store: store, name: name, id: id, listName: listName)
+    let label = reminder.title ?? id ?? name ?? "reminder"
     reminder.isCompleted = completed
     do {
         try store.save(reminder, commit: true)
@@ -180,7 +190,7 @@ func setReminderCompleted(store: EKEventStore, name: String, listName: String?, 
         exitWithError("Failed to save reminder: \(error.localizedDescription)")
     }
     let action = completed ? "completed" : "uncompleted"
-    print("\"Reminder \(action): \(name)\"")
+    print("\"Reminder \(action): \(label)\"")
 }
 
 // MARK: - ISO Date Parsing
@@ -265,38 +275,20 @@ func createReminder(store: EKEventStore, name: String, listName: String, body: S
     print("\"Reminder created: \(name)\"")
 }
 
-func deleteReminder(store: EKEventStore, name: String, listName: String?) {
-    var calendars: [EKCalendar]? = nil
-    if let listName = listName {
-        let matched = store.calendars(for: .reminder).filter { $0.title == listName }
-        if matched.isEmpty { exitWithError("List not found: \(listName)") }
-        calendars = matched
-    }
-    let reminders = fetchAllReminders(store: store, in: calendars)
-    let nameLower = name.lowercased()
-    guard let reminder = reminders.first(where: { ($0.title ?? "").lowercased() == nameLower }) else {
-        exitWithError("Reminder not found: \(name)")
-    }
+func deleteReminder(store: EKEventStore, name: String?, id: String?, listName: String?) {
+    let reminder = findReminder(store: store, name: name, id: id, listName: listName)
+    let label = reminder.title ?? id ?? name ?? "reminder"
     do {
         try store.remove(reminder, commit: true)
     } catch {
         exitWithError("Failed to delete reminder: \(error.localizedDescription)")
     }
-    print("\"Reminder deleted: \(name)\"")
+    print("\"Reminder deleted: \(label)\"")
 }
 
-func updateReminder(store: EKEventStore, name: String, listName: String?, newName: String?, body: String?, dueDateISO: String?, priority: Int?) {
-    var calendars: [EKCalendar]? = nil
-    if let listName = listName {
-        let matched = store.calendars(for: .reminder).filter { $0.title == listName }
-        if matched.isEmpty { exitWithError("List not found: \(listName)") }
-        calendars = matched
-    }
-    let reminders = fetchAllReminders(store: store, in: calendars)
-    let nameLower = name.lowercased()
-    guard let reminder = reminders.first(where: { ($0.title ?? "").lowercased() == nameLower }) else {
-        exitWithError("Reminder not found: \(name)")
-    }
+func updateReminder(store: EKEventStore, name: String?, id: String?, listName: String?, newName: String?, body: String?, dueDateISO: String?, priority: Int?) {
+    let reminder = findReminder(store: store, name: name, id: id, listName: listName)
+    let label = reminder.title ?? id ?? name ?? "reminder"
     if let newName = newName { reminder.title = newName }
     if let body = body { reminder.notes = body }
     if let priority = priority { reminder.priority = priority }
@@ -315,7 +307,7 @@ func updateReminder(store: EKEventStore, name: String, listName: String?, newNam
     } catch {
         exitWithError("Failed to update reminder: \(error.localizedDescription)")
     }
-    print("\"Reminder updated: \(newName ?? name)\"")
+    print("\"Reminder updated: \(newName ?? label)\"")
 }
 
 // MARK: - Main
@@ -326,15 +318,15 @@ func printUsage() -> Never {
     Commands:
       list-lists
       list-reminders --list <name> [--include-completed]
-      get-reminder --name <name> [--list <name>]
+      get-reminder (--name <name> | --id <id>) [--list <name>]
       search-reminders --query <text> [--list <name>]
-      complete-reminder --name <name> [--list <name>]
-      uncomplete-reminder --name <name> [--list <name>]
+      complete-reminder (--name <name> | --id <id>) [--list <name>]
+      uncomplete-reminder (--name <name> | --id <id>) [--list <name>]
       create-list --name <name>
       delete-list --name <name>
       create-reminder --name <name> --list <name> [--body <text>] [--due-date <ISO>] [--priority <0-9>]
-      delete-reminder --name <name> [--list <name>]
-      update-reminder --name <name> [--list <name>] [--new-name <name>] [--body <text>] [--due-date <ISO|none>] [--priority <0-9>]
+      delete-reminder (--name <name> | --id <id>) [--list <name>]
+      update-reminder (--name <name> | --id <id>) [--list <name>] [--new-name <name>] [--body <text>] [--due-date <ISO|none>] [--priority <0-9>]
     """, stderr)
     exit(1)
 }
@@ -383,10 +375,10 @@ func main() {
         listReminders(store: store, listName: listName, includeCompleted: hasFlag("--include-completed"))
 
     case "get-reminder":
-        guard let name = getArg("--name") else {
-            exitWithError("get-reminder requires --name")
+        guard getArg("--name") != nil || getArg("--id") != nil else {
+            exitWithError("get-reminder requires --name or --id")
         }
-        getReminder(store: store, name: name, listName: getArg("--list"))
+        getReminder(store: store, name: getArg("--name"), id: getArg("--id"), listName: getArg("--list"))
 
     case "search-reminders":
         guard let query = getArg("--query") else {
@@ -395,16 +387,16 @@ func main() {
         searchReminders(store: store, query: query, listName: getArg("--list"))
 
     case "complete-reminder":
-        guard let name = getArg("--name") else {
-            exitWithError("complete-reminder requires --name")
+        guard getArg("--name") != nil || getArg("--id") != nil else {
+            exitWithError("complete-reminder requires --name or --id")
         }
-        setReminderCompleted(store: store, name: name, listName: getArg("--list"), completed: true)
+        setReminderCompleted(store: store, name: getArg("--name"), id: getArg("--id"), listName: getArg("--list"), completed: true)
 
     case "uncomplete-reminder":
-        guard let name = getArg("--name") else {
-            exitWithError("uncomplete-reminder requires --name")
+        guard getArg("--name") != nil || getArg("--id") != nil else {
+            exitWithError("uncomplete-reminder requires --name or --id")
         }
-        setReminderCompleted(store: store, name: name, listName: getArg("--list"), completed: false)
+        setReminderCompleted(store: store, name: getArg("--name"), id: getArg("--id"), listName: getArg("--list"), completed: false)
 
     case "create-list":
         guard let name = getArg("--name") else {
@@ -428,16 +420,16 @@ func main() {
                        priority: getArg("--priority").flatMap { Int($0) })
 
     case "delete-reminder":
-        guard let name = getArg("--name") else {
-            exitWithError("delete-reminder requires --name")
+        guard getArg("--name") != nil || getArg("--id") != nil else {
+            exitWithError("delete-reminder requires --name or --id")
         }
-        deleteReminder(store: store, name: name, listName: getArg("--list"))
+        deleteReminder(store: store, name: getArg("--name"), id: getArg("--id"), listName: getArg("--list"))
 
     case "update-reminder":
-        guard let name = getArg("--name") else {
-            exitWithError("update-reminder requires --name")
+        guard getArg("--name") != nil || getArg("--id") != nil else {
+            exitWithError("update-reminder requires --name or --id")
         }
-        updateReminder(store: store, name: name, listName: getArg("--list"),
+        updateReminder(store: store, name: getArg("--name"), id: getArg("--id"), listName: getArg("--list"),
                        newName: getArg("--new-name"),
                        body: getArg("--body"),
                        dueDateISO: getArg("--due-date"),

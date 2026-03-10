@@ -63,7 +63,7 @@ export async function listReminders(
   return JSON.parse(raw);
 }
 
-export async function getReminder(name: string, listName?: string): Promise<{
+export async function getReminder(name: string | undefined, listName?: string, id?: string): Promise<{
   name: string;
   id: string;
   completed: boolean;
@@ -72,7 +72,8 @@ export async function getReminder(name: string, listName?: string): Promise<{
   priority: number;
   list: string;
 }> {
-  const args = ["get-reminder", "--name", name];
+  const args = ["get-reminder"];
+  if (id) { args.push("--id", id); } else if (name) { args.push("--name", name); }
   if (listName) args.push("--list", listName);
   const raw = await runHelper(args);
   return JSON.parse(raw);
@@ -88,15 +89,17 @@ export async function searchReminders(
   return JSON.parse(raw);
 }
 
-export async function completeReminder(name: string, listName?: string): Promise<string> {
-  const args = ["complete-reminder", "--name", name];
+export async function completeReminder(name: string | undefined, listName?: string, id?: string): Promise<string> {
+  const args = ["complete-reminder"];
+  if (id) { args.push("--id", id); } else if (name) { args.push("--name", name); }
   if (listName) args.push("--list", listName);
   const raw = await runHelper(args);
   return JSON.parse(raw);
 }
 
-export async function uncompleteReminder(name: string, listName?: string): Promise<string> {
-  const args = ["uncomplete-reminder", "--name", name];
+export async function uncompleteReminder(name: string | undefined, listName?: string, id?: string): Promise<string> {
+  const args = ["uncomplete-reminder"];
+  if (id) { args.push("--id", id); } else if (name) { args.push("--name", name); }
   if (listName) args.push("--list", listName);
   const raw = await runHelper(args);
   return JSON.parse(raw);
@@ -125,19 +128,22 @@ export async function createReminder(
   return JSON.parse(raw);
 }
 
-export async function deleteReminder(name: string, listName?: string): Promise<string> {
-  const args = ["delete-reminder", "--name", name];
+export async function deleteReminder(name: string | undefined, listName?: string, id?: string): Promise<string> {
+  const args = ["delete-reminder"];
+  if (id) { args.push("--id", id); } else if (name) { args.push("--name", name); }
   if (listName) args.push("--list", listName);
   const raw = await runHelper(args);
   return JSON.parse(raw);
 }
 
 export async function updateReminder(
-  name: string,
+  name: string | undefined,
   listName: string | undefined,
-  updates: { newName?: string; body?: string; dueDate?: string; priority?: number }
+  updates: { newName?: string; body?: string; dueDate?: string; priority?: number },
+  id?: string
 ): Promise<string> {
-  const args = ["update-reminder", "--name", name];
+  const args = ["update-reminder"];
+  if (id) { args.push("--id", id); } else if (name) { args.push("--name", name); }
   if (listName) args.push("--list", listName);
   if (updates.newName) args.push("--new-name", updates.newName);
   if (updates.body) args.push("--body", updates.body);
